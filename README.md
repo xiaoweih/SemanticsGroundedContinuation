@@ -86,8 +86,5 @@ information arrives. Such changes require explicit withdrawal of supporting
 records. Warrant predicates receive premise expressions and must not depend
 on the enumeration order of a premise set.
 
-Canonical project repository:
-<https://github.com/xiaoweih/Compositional-Semantics-for-Grounded-Continuation>
-
 Before publishing a new artifact release, add the open-source licence agreed
 by the authors. This local revision does not publish or license the package.
