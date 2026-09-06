@@ -192,19 +192,22 @@ class State:
                 if conclusion in invalid:
                     continue
                 incoming_count[conclusion] -= 1
-                if incoming_count[conclusion] == 0:
+                if incoming_count[conclusion] == 0 and conclusion not in self.evidence:
                     invalid.add(conclusion)
                     queue.append(conclusion)
         return invalid
 
     def well_formed(self):
         record_set = set(self.records)
+        ids = [x.uid for x in self.records]
+        if len(set(ids)) != len(ids) or any(not isinstance(i, int) or i < 0 for i in ids):
+            return False
         if not self.standing <= record_set or not self.evidence <= record_set:
             return False
         for record in self.records:
             if not atoms(record.expression) <= self.propositions:
                 return False
-            if not record.sources <= self.agents:
+            if not record.sources or not record.sources <= self.agents:
                 return False
         for premises, warrant, conclusion in self.edges:
             if not premises <= record_set or conclusion not in record_set:
@@ -294,11 +297,10 @@ def _descendants(state, record):
 
 def _apply_atomic(event, state):
     if event.family == "introduce":
-        if event.symbol in state.agents or event.symbol in state.propositions:
+        symbols = state.agents if event.symbol_is_agent else state.propositions
+        if event.symbol in symbols:
             raise TypingError("symbol already occurs in the signature")
-        (state.agents if event.symbol_is_agent else state.propositions).add(
-            event.symbol
-        )
+        symbols.add(event.symbol)
         return []
     if event.actor not in state.agents:
         raise TypingError("actor is not in the signature")
@@ -312,7 +314,7 @@ def _apply_atomic(event, state):
             raise TypingError("contribution kind must be evidence or claim")
         if not event.sources or not event.sources <= state.agents:
             raise TypingError("attributed sources must be nonempty agents")
-        record = Record(len(state.records), event.expression, event.sources)
+        record = Record(_fresh_id(state), event.expression, event.sources)
         state.records.append(record)
         state.standing.add(record)
         if event.kind == EVIDENCE:
@@ -333,7 +335,7 @@ def _apply_atomic(event, state):
         if len(premises) != event.warrant.arity:
             raise TypingError("warrant arity does not match the premise set")
         if event.target is NEW:
-            target = Record(len(state.records), event.expression,
+            target = Record(_fresh_id(state), event.expression,
                             frozenset({event.actor}))
             state.records.append(target)
             state.standing.add(target)
@@ -348,6 +350,14 @@ def _apply_atomic(event, state):
         state.edges.add((premises, event.warrant, target))
         return [target]
     raise TypingError(f"unknown event family: {event.family}")
+
+
+def _fresh_id(state):
+    used = {record.uid for record in state.records}
+    uid = 0
+    while uid in used:
+        uid += 1
+    return uid
 
 
 def Apply(event, state):
